@@ -1,0 +1,16 @@
+service: 'service:VLLM'
+labels:
+  owner: fidellr
+  stage: dev
+include:
+  - '*.py'
+  - 'services/*.py'
+python:
+  requirements_txt: './requirements.txt'
+  lock_packages: false
+envs:
+  - name: HF_TOKEN
+docker:
+  cuda_version: 12.1.1 # Set your CUDA version
+  distro: debian
+  python_version: 3.11
