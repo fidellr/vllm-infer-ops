@@ -1,13 +1,12 @@
 # Ignore non-code files by default
 .venv
 models/
-__pycache__/
-*.DS_Store
-*.sublime-workspace
-*.idea/
+**.DS_Store
+**.sublime-workspace
+**.idea/
 
 # Compiled bytecode and packages
-__pycache__/
+**/__pycache__/
 build/
 dist/
 *.pyc
