@@ -1,2 +1,39 @@
+# Ignore non-code files by default
 .venv
 models/
+__pycache__/
+*.DS_Store
+*.sublime-workspace
+*.idea/
+
+# Compiled bytecode and packages
+__pycache__/
+build/
+dist/
+*.pyc
+*.pyo
+
+# Logs
+logs/
+
+# IDEs and editors
+*.swob
+.pydevproject
+
+# Gitignore templates
+*.gitignore
+
+# Environment specific stuff
+.env  # Use git-secret for managed environments
+
+# Database migrations and fixtures
+db_migrate/
+db_backup/
+*.sqlite-journal
+
+# Version control history
+.git/
+
+# Miscellaneous
+*.bak
+node_modules/

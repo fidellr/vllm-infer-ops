@@ -1,7 +1,7 @@
 ## vllm serving engine with MLOps experiments
 
 MLOps Tasks & Experiments:
-1. Inference Engine - Asyn/Sync Generator 👨🏻‍💻
+1. Inference Engine - Async/Sync Generator 👨🏻‍💻
 2. Embeddings Engine - Sparse, Dense, etc.. [TODO]
 3. Retriever Engine - Hybrid, etc..[TODO]
 5. HyperParameter fine-tuner [axolotl, unsloth, etc..]
