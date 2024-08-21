@@ -25,7 +25,7 @@ app = FastAPI()
 @serve.deployment(
     autoscaling_config={
         "min_replicas": 1,
-        "max_replicas": 3,
+        "max_replicas": 2,
         "target_ongoing_requests": 5,
     },
     max_ongoing_requests=3,
@@ -82,6 +82,7 @@ class VLLMDeployment:
         if request.stream:
             return StreamingResponse(content=generator, media_type="text/event-stream")
         else:
+            # trunk-ignore(bandit/B101)
             assert isinstance(generator, ChatCompletionResponse)
             return JSONResponse(content=generator.model_dump())
 
