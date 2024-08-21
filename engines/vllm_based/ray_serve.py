@@ -1,12 +1,16 @@
+import json
 import logging
+import os
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI
 from ray import serve
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
-from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.engine.async_llm_engine import AsyncLLMEngine
+from vllm.engine.arg_utils import AsyncEngineArgs, EngineArgs
+
+# from vllm.engine.async_llm_engine import AsyncLLMEngine
+from vllm.engine.llm_engine import LLMEngine
 from vllm.entrypoints.openai.cli_args import make_arg_parser
 from vllm.entrypoints.openai.protocol import (
     ChatCompletionRequest,
@@ -14,7 +18,7 @@ from vllm.entrypoints.openai.protocol import (
     ErrorResponse,
 )
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
-from vllm.entrypoints.openai.serving_engine import LoRAModulePath
+from vllm.entrypoints.openai.serving_engine import LoRAModulePath, OpenAIServing
 from vllm.utils import FlexibleArgumentParser
 
 logger = logging.getLogger("ray.serve")
@@ -34,18 +38,18 @@ app = FastAPI()
 class VLLMDeployment:
     def __init__(
         self,
-        engine_args: AsyncEngineArgs,
+        engine_args: AsyncEngineArgs | EngineArgs,
         response_role: str,
         lora_modules: Optional[List[LoRAModulePath]] = None,
         chat_template: Optional[str] = None,
     ):
         logger.info(f"Starting with engine args: {engine_args}")
-        self.openai_serving_chat = None
+        self.openai_serving = None
         self.engine_args = engine_args
         self.response_role = response_role
         self.lora_modules = lora_modules
         self.chat_template = chat_template
-        self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+        self.engine = LLMEngine.from_engine_args(engine_args)
 
     @app.post("/v1/chat/completions")
     async def create_chat_completion(
@@ -56,14 +60,14 @@ class VLLMDeployment:
         API reference:
             - https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
         """
-        if not self.openai_serving_chat:
-            model_config = await self.engine.get_model_config()
+        if not self.openai_serving:
+            model_config = self.engine.get_model_config()
             # Determine the name of the served model for the OpenAI client.
             if self.engine_args.served_model_name is not None:
                 served_model_names = self.engine_args.served_model_name
             else:
                 served_model_names = [self.engine_args.model]
-            self.openai_serving_chat = OpenAIServingChat(
+            self.openai_serving = OpenAIServingChat(
                 self.engine,
                 model_config,
                 served_model_names,
@@ -71,10 +75,13 @@ class VLLMDeployment:
                 self.lora_modules,
                 self.chat_template,
             )
+
         logger.info(f"Request: {request}")
-        generator = await self.openai_serving_chat.create_chat_completion(
-            request, raw_request
+        generator = await self.openai_serving.create_chat_completion(
+            request,
+            raw_request,
         )
+
         if isinstance(generator, ErrorResponse):
             return JSONResponse(
                 content=generator.model_dump(), status_code=generator.code
@@ -85,6 +92,38 @@ class VLLMDeployment:
             # trunk-ignore(bandit/B101)
             assert isinstance(generator, ChatCompletionResponse)
             return JSONResponse(content=generator.model_dump())
+
+    @app.get("/v1/models")
+    async def get_model_list(self, **kwargs):
+        """OpenAI-compatible HTTP endpoint.
+
+        API reference:
+            - https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
+        """
+        if not self.openai_serving:
+            model_config = self.engine.get_model_config()
+            # Determine the name of the served model for the OpenAI client.
+            if self.engine_args.served_model_name is not None:
+                served_model_names = self.engine_args.served_model_name
+            else:
+                served_model_names = [self.engine_args.model]
+            self.openai_serving = OpenAIServing(
+                self.engine,
+                model_config,
+                served_model_names,
+                self.response_role,
+                self.lora_modules,
+                self.chat_template,
+            )
+
+        logger.info(f"Request: {kwargs.values()}")
+        generator = await self.openai_serving.show_available_models()
+        if isinstance(generator, ErrorResponse):
+            return JSONResponse(
+                content=generator.model_dump(), status_code=generator.code
+            )
+
+        return generator
 
 
 def parse_vllm_args(cli_args: Dict[str, str]):
@@ -106,7 +145,7 @@ def parse_vllm_args(cli_args: Dict[str, str]):
     return parsed_args
 
 
-def build_app(cli_args: Dict[str, str]) -> serve.Application:
+def build_app(cli_args: Dict[str, str] = None):
     """Builds the Serve app based on CLI arguments.
 
     See https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html#command-line-arguments-for-the-server
@@ -115,7 +154,7 @@ def build_app(cli_args: Dict[str, str]) -> serve.Application:
     Supported engine arguments: https://docs.vllm.ai/en/latest/models/engine_args.html.
     """  # noqa: E501
     parsed_args = parse_vllm_args(cli_args)
-    engine_args = AsyncEngineArgs.from_cli_args(parsed_args)
+    engine_args = EngineArgs.from_cli_args(parsed_args)
     engine_args.worker_use_ray = True
 
     tp = engine_args.tensor_parallel_size
@@ -130,9 +169,11 @@ def build_app(cli_args: Dict[str, str]) -> serve.Application:
     # the same Ray node.
     return VLLMDeployment.options(
         placement_group_bundles=pg_resources, placement_group_strategy="STRICT_PACK"
-    ).bind(
-        engine_args,
-        parsed_args.response_role,
-        parsed_args.lora_modules,
-        parsed_args.chat_template,
-    )
+    ).bind(cli_args)
+
+build_cli_args = os.getenv("BUILD_CLI_ARGS")
+build_cli_args: Optional[EngineArgs] = json.loads(build_cli_args)
+print("BUILD_CLIARGS:::>", build_cli_args, sep="\n")
+# build_cli_args = json.loads(build_cli_args)
+# print("BUILD_CLIARGS:::>", json.dumps(build_cli_args, indent=2), sep="\n")
+app = VLLMDeployment.bind(build_app(cli_args=build_cli_args))
