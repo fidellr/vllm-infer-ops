@@ -1,6 +1,6 @@
 # import asyncio
 import os
-from typing import Optional
+from typing import Any, List, Optional
 
 from openai import AsyncOpenAI, OpenAI
 
@@ -31,18 +31,30 @@ class InferenceServe:
         self.response_role = response_role
         self.chat_template = chat_template
 
-    def chat_completions(self):
-        # Note: Ray Serve doesn't support all OpenAI client arguments and may ignore some.
-        chat_completion = self.openai_serving_chat.chat.completions.create(
-            model=self.base_model,
-            # messages=messages
-            messages=[
+    def chat_completions(self, messages: Optional[List[Any]]):
+        messages = (
+            messages
+            or [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {
                     "role": "user",
                     "content": "What are some highly rated restaurants in San Francisco?'",
                 },
             ],
+        )
+
+        # Note: Ray Serve doesn't support all OpenAI client arguments and may ignore some.
+        chat_completion = self.openai_serving_chat.chat.completions.create(
+            messages=messages,
+            model=self.base_model,
+            # messages=messages
+            # messages=[
+            #     {"role": "system", "content": "You are a helpful assistant."},
+            #     {
+            #         "role": "user",
+            #         "content": "What are some highly rated restaurants in San Francisco?'",
+            #     },
+            # ],
             temperature=0.02,
             stream=True,
         )
