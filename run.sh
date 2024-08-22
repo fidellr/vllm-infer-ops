@@ -1,5 +1,15 @@
-# VLLM_VERSION="0.5.4"
-# pip install https://vllm-wheels.s3.us-west-2.amazonaws.com/nightly/vllm-${VLLM_VERSION}-cp38-abi3-manylinux1_x86_64.whl
+#!/bin/bash
+BASE_DIR="${PWD}"
+USER_ACTION=$1
+MODEL_REPO_ID=$2
 
-# VLLM_VERSION=$VLLM_VERSION pip install -r requirements.txt
-pip install -r requirements.txt --force-reinstall --no-cache-dir
+if [[ ${USER_ACTION} == "ray_serve" ]]; then
+	cd "${BASE_DIR}/engines/vllm_based" &&
+		$(command -v serve) run ray_serve:app model="${MODEL_REPO_ID}" tensor-parallel-size=1
+
+	#  Current
+	echo "current_dir: ${PWD}"
+else
+	echo "Error: Non-empty engine user command. Please use 'ray_serve' or any user actions that supported. (current supported: ray_serve)"
+	exit 1
+fi
