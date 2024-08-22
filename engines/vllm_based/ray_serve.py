@@ -30,7 +30,7 @@ app = FastAPI()
     autoscaling_config={
         "min_replicas": 1,
         "max_replicas": 2,
-        "target_ongoing_requests": 5,
+        "target_ongoing_requests": 3,
     },
     max_ongoing_requests=3,
 )
@@ -170,6 +170,7 @@ def build_app(cli_args: Dict[str, str] = None):
     return VLLMDeployment.options(
         placement_group_bundles=pg_resources, placement_group_strategy="STRICT_PACK"
     ).bind(cli_args)
+
 
 build_cli_args = os.getenv("BUILD_CLI_ARGS")
 build_cli_args: Optional[EngineArgs] = json.loads(build_cli_args)
