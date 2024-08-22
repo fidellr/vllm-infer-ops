@@ -8,7 +8,7 @@ export OPENAI_BASE_MODEL=$2
 if [[ ${USER_ACTION} == "ray_serve" ]]; then
 	. .venv/bin/activate &&
 		cd "${BASE_DIR}/engines/vllm_based" &&
-		$(which serve) run ray_serve:build model="${MODEL_REPO_ID}" tensor-parallel-size=1
+		$(command -v serve) run ray_serve:build model="${MODEL_REPO_ID}" tensor-parallel-size=1
 
 	#  Current
 	echo "current_dir: ${PWD}"
