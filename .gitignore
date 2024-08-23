@@ -13,8 +13,11 @@ dist/
 *.pyo
 
 # Logs
+data/
+prometheus-*/
 logs/
 
+*.tar.gz
 # IDEs and editors
 *.swob
 .pydevproject
