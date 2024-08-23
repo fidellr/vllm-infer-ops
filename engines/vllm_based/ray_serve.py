@@ -7,10 +7,10 @@ from fastapi import FastAPI
 from ray import serve
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
-from vllm.engine.arg_utils import AsyncEngineArgs, EngineArgs
+from vllm.engine.arg_utils import AsyncEngineArgs, AsyncEngineArgs
 
-# from vllm.engine.async_llm_engine import AsyncLLMEngine
-from vllm.engine.llm_engine import LLMEngine
+from vllm.engine.async_llm_engine import AsyncLLMEngine
+# from vllm.engine.llm_engine import LLMEngine
 from vllm.entrypoints.openai.cli_args import make_arg_parser
 from vllm.entrypoints.openai.protocol import (
     ChatCompletionRequest,
@@ -32,13 +32,13 @@ app = FastAPI()
         "max_replicas": 2,
         "target_ongoing_requests": 5,
     },
-    max_ongoing_requests=3,
+    max_ongoing_requests=5,
 )
 @serve.ingress(app)
 class VLLMDeployment:
     def __init__(
         self,
-        engine_args: AsyncEngineArgs | EngineArgs,
+        engine_args: AsyncEngineArgs | AsyncEngineArgs,
         response_role: str,
         lora_modules: Optional[List[LoRAModulePath]] = None,
         chat_template: Optional[str] = None,
@@ -49,7 +49,7 @@ class VLLMDeployment:
         self.response_role = response_role
         self.lora_modules = lora_modules
         self.chat_template = chat_template
-        self.engine = LLMEngine.from_engine_args(engine_args)
+        self.engine = AsyncLLMEngine.from_engine_args(engine_args)
 
     @app.post("/v1/chat/completions")
     async def create_chat_completion(
@@ -145,7 +145,7 @@ def parse_vllm_args(cli_args: Dict[str, str]):
     return parsed_args
 
 
-def build_app(cli_args: Dict[str, str] = None):
+def build_app(cli_args: Dict[str, str]):
     """Builds the Serve app based on CLI arguments.
 
     See https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html#command-line-arguments-for-the-server
@@ -154,7 +154,7 @@ def build_app(cli_args: Dict[str, str] = None):
     Supported engine arguments: https://docs.vllm.ai/en/latest/models/engine_args.html.
     """  # noqa: E501
     parsed_args = parse_vllm_args(cli_args)
-    engine_args = EngineArgs.from_cli_args(parsed_args)
+    engine_args = AsyncEngineArgs.from_cli_args(parsed_args)
     engine_args.worker_use_ray = True
 
     tp = engine_args.tensor_parallel_size
@@ -169,11 +169,17 @@ def build_app(cli_args: Dict[str, str] = None):
     # the same Ray node.
     return VLLMDeployment.options(
         placement_group_bundles=pg_resources, placement_group_strategy="STRICT_PACK"
-    ).bind(cli_args)
+    ).bind(engine_args,
+            parsed_args.response_role,
+        parsed_args.lora_modules,
+        parsed_args.chat_template,
+        )
 
-build_cli_args = os.getenv("BUILD_CLI_ARGS")
-build_cli_args: Optional[EngineArgs] = json.loads(build_cli_args)
+
+default_args = dict(model="os.getenv('OPENAI_BASE_MODEL')",tensor_parallel_size=1)
+build_cli_args = os.getenv("BUILD_CLI_ARGS", json.dumps(default_args))
+build_cli_args = json.loads(build_cli_args)
 print("BUILD_CLIARGS:::>", build_cli_args, sep="\n")
 # build_cli_args = json.loads(build_cli_args)
 # print("BUILD_CLIARGS:::>", json.dumps(build_cli_args, indent=2), sep="\n")
-app = VLLMDeployment.bind(build_app(cli_args=build_cli_args))
+app = build_app(cli_args=build_cli_args)

@@ -7,9 +7,7 @@ VLLM_VERSION=0.5.4
 # Determine which requirements file to use based on the user command
 MLOPS=$1
 BASE_ENGINE=$2
-
-python3 -m venv .venv
-source .venv/bin/activate
+MODEL_REPO_ID=$3
 
 if [[ ${MLOPS} == "ray" ]]; then
 	REQUIREMENTS_FILE="${BASE_DIR}/ops/${MLOPS}/requirements-${MLOPS}.txt"
@@ -26,12 +24,9 @@ else
 	exit 1
 fi
 
-MODEL_REPO_ID=$3
-. .venv/bin/activate
-# pip install -r "${ENGINE_REQUIREMENTS_FILE}"
-# pip install -r "${REQUIREMENTS_FILE}"
+pip install -r "${ENGINE_REQUIREMENTS_FILE}"
+pip install -r "${REQUIREMENTS_FILE}"
 
 export BUILD_CLI_ARGS='{"model": "'${MODEL_REPO_ID}'", "tensor-parallel-size": "1"}'
-cd "${BASE_DIR}/engines/vllm_based" &&
-	BUILD_CLI_ARGS=${BUILD_CLI_ARGS} serve build "${MLOPS}"_serve:app -o serve_config.yaml
+BUILD_CLI_ARGS=${BUILD_CLI_ARGS} serve build engines.vllm_based."${MLOPS}"_serve:app -o serve_config.yaml
 echo "current_dir: ${PWD}"

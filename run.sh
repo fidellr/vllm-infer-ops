@@ -1,18 +1,18 @@
 #!/bin/bash
-#!. .venv/bin/activate
 
 BASE_DIR="${PWD}"
 USER_ACTION=$1
-export OPENAI_BASE_MODEL=$2
+MODEL_REPO_ID=$2
+BUILD_CLI_ARGS='{"model": "'$MODEL_REPO_ID'", "tensor-parallel-size": "1"}'
 
 if [[ ${USER_ACTION} == "ray_serve" ]]; then
-	. .venv/bin/activate &&
-		cd "${BASE_DIR}/engines/vllm_based" &&
-		$(which serve) run ray_serve:build model="${MODEL_REPO_ID}" tensor-parallel-size=1
+	ray start --include-dashboard True --head
+	# ray job submit --working-dir . -- \
+	# 	BUILD_CLI_ARGS=$BUILD_CLI_ARGS serve run engines.vllm_based.ray_serve:app model="$MODEL_REPO_ID" tensor-parallel-size=1
+	BUILD_CLI_ARGS="'$BUILD_CLI_ARGS'" serve deploy serve_config.yaml
 
 	#  Current
 	echo "current_dir: ${PWD}"
-	cat serve_config.yaml
 else
 	echo "Error: Non-empty engine user command. Please use 'ray_serve' or any user actions that supported. (current supported: ray_serve)"
 	exit 1
